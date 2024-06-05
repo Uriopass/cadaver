@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+    "cadaver",
+    "gui"]
+
+default-members = ["gui"]
+resolver = "2"
