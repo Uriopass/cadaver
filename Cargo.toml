@@ -1,8 +1,10 @@
 [workspace]
-
 members = [
     "cadaver",
     "gui"]
 
 default-members = ["gui"]
 resolver = "2"
+
+[workspace.dependencies]
+geom = { git = "https://github.com/Uriopass/Egregoria", branch = "master" }

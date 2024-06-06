@@ -1,3 +1,3 @@
-mod gjk;
+pub mod gjk;
 pub mod rigidbody;
-mod world;
+pub mod world;

@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 cadaver = { path = "../cadaver" }
 macroquad = { version = "0.4.8", default-features = false, features = [] }
+geom = { workspace = true }

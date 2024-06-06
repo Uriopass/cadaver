@@ -5,6 +5,7 @@ pub struct RigidBody {
     /// Mass in kilograms
     mass: f32,
     shape: AABB,
+    /// Moment of inertia in kg m^2
     moment_of_inertia: f32,
 
     // Dynamic
@@ -34,6 +35,10 @@ impl RigidBody {
         }
     }
 
+    pub fn with_pos(self, pos: Vec2) -> Self {
+        Self { pos, ..self }
+    }
+
     pub fn mass(&self) -> f32 {
         self.mass
     }
@@ -47,58 +52,50 @@ impl RigidBody {
     }
 
     pub fn bbox(&self) -> AABB {
-        self.shape.bbox()
+        todo!()
     }
 
+    /// Returns the center of mass in world coordinates.
     pub fn center(&self) -> Vec2 {
-        self.shape.center()
+        self.shape.center() + self.pos
     }
 
+    /// 1/2 mv^2
     pub fn linear_energy(&self) -> f32 {
         (0.5 * self.mass) * self.linear_velocity.mag2()
     }
 
+    /// 1/2 Iw^2
     pub fn angular_energy(&self) -> f32 {
-        (0.5 * self.mass) * (self.angular_velocity.0 * self.angular_velocity.0)
+        (0.5 * self.moment_of_inertia) * (self.angular_velocity.0 * self.angular_velocity.0)
     }
 
     pub fn energy(&self) -> f32 {
-        (0.5 * self.mass)
-            * (self.linear_velocity.mag2() + self.angular_velocity.0 * self.angular_velocity.0)
+        0.5 * (self.mass * self.linear_velocity.mag2()
+            + self.moment_of_inertia * self.angular_velocity.0 * self.angular_velocity.0)
+    }
+
+    pub fn step(&mut self, dt: f32) {
+        self.pos += self.linear_velocity * dt;
+        self.angle += self.angular_velocity * dt;
     }
 
     /// Apply an impulse to the rigid body.
     /// The impulse is applied at the contact point.
     /// The impulse is in N.s or kg m/s.
-    pub fn apply_impulse(&mut self, mut impulse: Vec2, contact: Vec2) {
-        #[cfg(debug_assertions)]
-        let before_energy = self.energy();
-
-        impulse /= self.mass;
-
-        match (self.pos - contact).try_normalize() {
+    pub fn apply_impulse(&mut self, impulse: Vec2, contact: Vec2) {
+        match (self.center() - contact).try_normalize() {
             Some(normal) => {
-                let angle_coeff = normal.dot(impulse).abs();
+                let angle_coeff = normal.dot(impulse.normalize()).abs();
                 let angle_dir = normal.perp_dot(impulse).signum();
 
-                self.linear_velocity += impulse * angle_coeff.abs();
-                self.angular_velocity += Radians(impulse.mag() * angle_coeff * angle_dir);
+                self.linear_velocity += (impulse / self.mass) * angle_coeff;
+                self.angular_velocity -= Radians(
+                    impulse.mag2() / self.moment_of_inertia * (1.0 - angle_coeff) * angle_dir,
+                );
             }
             None => {
-                self.linear_velocity += impulse;
-            }
-        }
-
-        #[cfg(debug_assertions)]
-        {
-            let after_energy = self.energy();
-            if (before_energy - after_energy).abs() >= 1e-6 {
-                eprintln!(
-                    "Energy was not conserved: before = {}, after = {}. (diff = {})",
-                    before_energy,
-                    after_energy,
-                    (before_energy - after_energy).abs()
-                );
+                self.linear_velocity += impulse / self.mass;
             }
         }
     }
