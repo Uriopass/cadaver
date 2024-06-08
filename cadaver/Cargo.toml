@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 slotmap = "1.0.7"
 geom = { workspace = true }
+
+lazy_static = "1.4.0"

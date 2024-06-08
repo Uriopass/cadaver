@@ -1,10 +1,72 @@
-use geom::{Radians, Shape, Vec2, AABB, OBB};
+use crate::gjk::GJKObject;
+use geom::{Circle, Radians, Shape, Vec2, AABB, OBB};
+
+#[derive(Copy, Clone, Debug)]
+pub enum RigidBodyShape {
+    AABB(AABB),
+    OBB(OBB),
+    Circle(Circle),
+}
+
+impl From<AABB> for RigidBodyShape {
+    fn from(aabb: AABB) -> Self {
+        RigidBodyShape::AABB(aabb)
+    }
+}
+
+impl From<OBB> for RigidBodyShape {
+    fn from(obb: OBB) -> Self {
+        RigidBodyShape::OBB(obb)
+    }
+}
+
+impl From<Circle> for RigidBodyShape {
+    fn from(circle: Circle) -> Self {
+        RigidBodyShape::Circle(circle)
+    }
+}
+
+impl GJKObject for RigidBodyShape {
+    fn support(&self, dir: Vec2) -> Vec2 {
+        match self {
+            RigidBodyShape::AABB(aabb) => aabb.support(dir),
+            RigidBodyShape::OBB(obb) => obb.support(dir),
+            RigidBodyShape::Circle(circle) => circle.support(dir),
+        }
+    }
+}
+
+impl RigidBodyShape {
+    pub fn bbox(&self) -> AABB {
+        match self {
+            RigidBodyShape::AABB(aabb) => *aabb,
+            RigidBodyShape::OBB(obb) => obb.bbox(),
+            RigidBodyShape::Circle(circle) => circle.bbox(),
+        }
+    }
+
+    pub fn center(&self) -> Vec2 {
+        match self {
+            RigidBodyShape::AABB(aabb) => aabb.center(),
+            RigidBodyShape::OBB(obb) => obb.center(),
+            RigidBodyShape::Circle(circle) => circle.center,
+        }
+    }
+
+    pub fn moment_of_inertia(&self, mass: f32) -> f32 {
+        match self {
+            RigidBodyShape::AABB(aabb) => aabb.moment_of_inertia(mass),
+            RigidBodyShape::OBB(obb) => obb.moment_of_inertia(mass),
+            RigidBodyShape::Circle(circle) => circle.moment_of_inertia(mass),
+        }
+    }
+}
 
 pub struct RigidBody {
     // Static
     /// Mass in kilograms
     mass: f32,
-    shape: AABB,
+    shape: RigidBodyShape,
     /// Moment of inertia in kg m^2
     moment_of_inertia: f32,
 
@@ -20,12 +82,13 @@ pub struct RigidBody {
 }
 
 impl RigidBody {
-    pub fn new(shape: AABB, mass: f32) -> Self {
+    pub fn new(shape: impl Into<RigidBodyShape>, mass: f32) -> Self {
+        let shape = shape.into();
         Self {
             mass,
 
-            shape,
             moment_of_inertia: shape.moment_of_inertia(mass),
+            shape,
 
             pos: Default::default(),
             angle: Default::default(),
@@ -43,12 +106,21 @@ impl RigidBody {
         self.mass
     }
 
-    pub fn shape(&self) -> AABB {
+    pub fn shape(&self) -> RigidBodyShape {
         self.shape
     }
 
-    pub fn oriented_shape(&self) -> OBB {
-        OBB::from_rotated_aabb(self.shape, self.angle.vec2()) + self.pos
+    pub fn oriented_shape(&self) -> RigidBodyShape {
+        match self.shape {
+            RigidBodyShape::AABB(aabb) => {
+                RigidBodyShape::OBB(OBB::from_rotated_aabb(aabb, self.angle.vec2()) + self.pos)
+            }
+            RigidBodyShape::OBB(obb) => RigidBodyShape::OBB(obb + self.pos),
+            RigidBodyShape::Circle(circle) => RigidBodyShape::Circle(Circle {
+                center: circle.center + self.pos,
+                radius: circle.radius,
+            }),
+        }
     }
 
     pub fn bbox(&self) -> AABB {

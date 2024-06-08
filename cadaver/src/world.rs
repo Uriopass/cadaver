@@ -1,5 +1,7 @@
+use crate::epa::epa;
 use crate::gjk::gjk;
 use crate::rigidbody::RigidBody;
+use geom::{Intersect, Shape};
 use slotmap::{new_key_type, SlotMap};
 
 new_key_type! {
@@ -9,6 +11,15 @@ new_key_type! {
 #[derive(Default)]
 pub struct RigidWorld {
     pub bodies: SlotMap<RigidBodyID, RigidBody>,
+}
+
+pub struct CollisionPair {
+    pub id1: RigidBodyID,
+    pub id2: RigidBodyID,
+    pub depth: f32,
+    pub normal: geom::Vec2,
+    pub contact_1: geom::Vec2,
+    pub contact_2: geom::Vec2,
 }
 
 impl RigidWorld {
@@ -26,15 +37,31 @@ impl RigidWorld {
         }
     }
 
-    pub fn collisions(&self) -> Vec<(RigidBodyID, RigidBodyID)> {
+    pub fn collisions(&self) -> Vec<CollisionPair> {
         let mut pairs = Vec::new();
         for (id1, body1) in self.bodies.iter() {
             for (id2, body2) in self.bodies.iter() {
-                if id1 == id2 {
+                if id1 >= id2 {
                     continue;
                 }
-                if gjk(body1.oriented_shape(), body2.oriented_shape()) {
-                    pairs.push((id1, id2));
+                let body1 = body1.oriented_shape();
+                let body2 = body2.oriented_shape();
+
+                if !body1.bbox().intersects(&body2.bbox()) {
+                    continue;
+                }
+
+                if let Some(t) = gjk(body1, body2) {
+                    if let Some(res) = epa(body1, body2, t) {
+                        pairs.push(CollisionPair {
+                            id1,
+                            id2,
+                            depth: res.distance,
+                            normal: res.normal,
+                            contact_1: res.contact_a,
+                            contact_2: res.contact_b,
+                        });
+                    }
                 }
             }
         }

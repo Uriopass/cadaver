@@ -50,14 +50,14 @@ impl GJKObject for Circle {
     }
 }
 
-pub fn gjk(a: impl GJKObject, b: impl GJKObject) -> bool {
+pub fn gjk(a: impl GJKObject, b: impl GJKObject) -> Option<GJKTriangle> {
     let minkowski_diff = |dir: Vec2| a.support(dir) - b.support(-dir);
 
     let first_point = minkowski_diff(Vec2::X);
-    let second_point = minkowski_diff(-first_point);
+    let second_point = minkowski_diff(-first_point.normalize());
 
     if first_point.dot(second_point) > 0.0 {
-        return false;
+        return None;
     }
 
     let mut simplex = Segment::new(first_point, second_point);
@@ -69,7 +69,7 @@ pub fn gjk(a: impl GJKObject, b: impl GJKObject) -> bool {
         let new_point = minkowski_diff(dir);
 
         if new_point.dot(dir) < 0.0 {
-            return false;
+            return None;
         }
 
         let triangle = GJKTriangle {
@@ -79,13 +79,13 @@ pub fn gjk(a: impl GJKObject, b: impl GJKObject) -> bool {
         };
 
         let Some((new_simplex, new_dir)) = triangle.nearest_simplex() else {
-            return true;
+            return Some(triangle);
         };
         simplex = new_simplex;
         dir = new_dir;
     }
 
-    return false;
+    return None;
 }
 
 fn segment_dir_towards_zero(segment: &Segment) -> Vec2 {
@@ -97,9 +97,9 @@ fn segment_dir_towards_zero(segment: &Segment) -> Vec2 {
 
 #[derive(Copy, Clone)]
 pub struct GJKTriangle {
-    b: Vec2,
-    c: Vec2,
-    last_point: Vec2,
+    pub b: Vec2,
+    pub c: Vec2,
+    pub last_point: Vec2,
 }
 
 impl GJKTriangle {
@@ -134,6 +134,6 @@ impl GJKTriangle {
 }
 
 /// Computes (v x dir) x v
-fn perp_towards_dir(v: Vec2, dir: Vec2) -> Vec2 {
+pub fn perp_towards_dir(v: Vec2, dir: Vec2) -> Vec2 {
     dir.cross(v).signum() * v.perpendicular()
 }
